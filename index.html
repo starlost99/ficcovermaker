@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frontispiece — Fic Cover Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,600&family=EB+Garamond:wght@400;500&family=Oswald:wght@300;400;600&family=Marcellus&family=Quicksand:wght@400;500;600&family=Cinzel:wght@400;600&family=Cinzel+Decorative:wght@700&family=Orbitron:wght@500;700&family=Rajdhani:wght@400;500;600&family=Fraunces:ital,wght@0,600;1,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --panel:#eee8de; --panel-border:#d9d1bf; --accent:#3f7a72; --accent-dark:#2c584f;
+    --text:#2a2a28; --muted:#6b6558;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:'Inter',system-ui,sans-serif;
+    background:radial-gradient(circle at 18% 8%, #262b33, #14161a 72%);
+    color:#e8e6df; min-height:100vh;
+  }
+  .app{display:grid; grid-template-columns:380px 1fr; min-height:100vh;}
+  @media (max-width:880px){ .app{grid-template-columns:1fr;} }
+  .panel{
+    background:var(--panel); color:var(--text); padding:2.4rem 2rem;
+    display:flex; flex-direction:column; gap:1.15rem; overflow-y:auto;
+    border-right:1px solid var(--panel-border);
+  }
+  .panel h1{font-family:'Fraunces',serif; font-size:2rem; margin:0 0 .05rem; letter-spacing:.01em;}
+  .panel h1 em{font-style:italic; color:var(--accent-dark);}
+  .tagline{margin:0 0 .5rem; color:var(--muted); font-size:.92rem; line-height:1.4;}
+  label{display:flex; flex-direction:column; gap:.35rem; font-size:.74rem; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); font-weight:600;}
+  input, textarea, select{
+    font-family:'Inter',sans-serif; font-size:.95rem; padding:.65rem .75rem; border-radius:7px;
+    border:1px solid #cfc6b0; background:#fbf9f4; color:#211f1c; resize:vertical;
+  }
+  textarea{line-height:1.4;}
+  input:focus, textarea:focus, select:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .badge{
+    font-size:.82rem; color:var(--accent-dark); font-weight:700; min-height:1.2em;
+    letter-spacing:.02em;
+  }
+  .buttons{display:flex; gap:.6rem; margin-top:.3rem; flex-wrap:wrap;}
+  button{
+    cursor:pointer; border:none; border-radius:8px; padding:.75rem 1.05rem;
+    font-size:.85rem; font-weight:700; font-family:inherit; transition:background .15s ease;
+  }
+  #shuffleBtn{background:#e2dbc9; color:#3a352a;}
+  #shuffleBtn:hover{background:#d6cdb4;}
+  .primary{background:var(--accent); color:#fff;}
+  .primary:hover{background:var(--accent-dark);}
+  .hint{font-size:.78rem; color:var(--muted); line-height:1.4; margin-top:-.4rem;}
+  .divider{border:none; border-top:1px solid var(--panel-border); margin:.3rem 0;}
+  .import-row{display:flex; gap:.5rem; align-items:stretch;}
+  .import-row input[type="text"]{flex:1;}
+  .import-row button{background:var(--accent); color:#fff; padding:.6rem .9rem; font-size:.8rem; white-space:nowrap;}
+  .import-row button:hover{background:var(--accent-dark);}
+  input[type="file"]{font-size:.82rem; padding:.5rem;}
+  #importStatus{font-size:.78rem; color:var(--accent-dark); font-weight:600; min-height:1.1em;}
+  .stage{display:flex; align-items:center; justify-content:center; padding:3rem 2rem;}
+  .book{
+    position:relative; border-radius:4px;
+    box-shadow:0 30px 70px -12px rgba(0,0,0,.65), 0 4px 0 #0d0e10, 0 9px 0 rgba(0,0,0,.35);
+  }
+  .book::before{
+    content:''; position:absolute; left:-7px; top:5px; bottom:5px; width:11px;
+    background:linear-gradient(90deg,#0b0c0e,#242629); border-radius:3px 0 0 3px;
+  }
+  canvas{display:block; width:300px; height:450px; border-radius:3px;}
+  @media (min-width:600px){ canvas{width:340px; height:510px;} }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="panel">
+    <h1>Front<em>ispiece</em></h1>
+    <p class="tagline">The illustrated page facing your title page. Describe the fic, get a cover.</p>
+
+    <label>Import from
+      <div class="import-row">
+        <input type="file" id="epubInput" accept=".epub">
+      </div>
+      <div class="import-row">
+        <input type="text" id="ao3Input" placeholder="https://archiveofourown.org/works/12345">
+        <button id="ao3Btn" type="button">Fetch</button>
+      </div>
+    </label>
+    <div id="importStatus"></div>
+    <hr class="divider">
+
+    <label>Title
+      <input id="titleInput" type="text" placeholder="the weight of what remains" maxlength="120">
+    </label>
+
+    <label>Author (optional)
+      <input id="authorInput" type="text" placeholder="your username" maxlength="60">
+    </label>
+
+    <label>Summary or tags
+      <textarea id="summaryInput" rows="7" placeholder="Paste your summary, or just drop tags/tropes — enemies to lovers, dark academia, secret royal, slow burn, canon-typical violence..."></textarea>
+    </label>
+
+    <label>Mood
+      <select id="moodSelect">
+        <option value="auto">Auto-detect from text ✨</option>
+        <option value="darkAcademia">Dark Academia</option>
+        <option value="noir">Angst &amp; Noir</option>
+        <option value="cottage">Cozy &amp; Fluff</option>
+        <option value="fantasy">Epic Fantasy</option>
+        <option value="cyberpunk">Cyberpunk</option>
+        <option value="gothic">Gothic Romance</option>
+      </select>
+    </label>
+    <div id="badge" class="badge"></div>
+
+    <div class="buttons">
+      <button id="shuffleBtn" type="button">🎲 Shuffle variation</button>
+      <button id="downloadBtn" type="button" class="primary">⤓ Download cover</button>
+    </div>
+    <p class="hint">Covers render at 1200×1800px — ready to drop straight into your epub metadata.</p>
+  </aside>
+
+  <main class="stage">
+    <div class="book">
+      <canvas id="cover" width="1200" height="1800"></canvas>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+(function(){
+  const W = 1200, H = 1800;
+  const canvas = document.getElementById('cover');
+  const ctx = canvas.getContext('2d');
+
+  const titleInput = document.getElementById('titleInput');
+  const authorInput = document.getElementById('authorInput');
+  const summaryInput = document.getElementById('summaryInput');
+  const moodSelect = document.getElementById('moodSelect');
+  const badge = document.getElementById('badge');
+  const shuffleBtn = document.getElementById('shuffleBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const epubInput = document.getElementById('epubInput');
+  const ao3Input = document.getElementById('ao3Input');
+  const ao3Btn = document.getElementById('ao3Btn');
+  const importStatus = document.getElementById('importStatus');
+
+  function setStatus(msg){ importStatus.textContent = msg; }
+  function stripHtml(html){
+    const d = document.createElement('div'); d.innerHTML = html || '';
+    return d.textContent.trim();
+  }
+
+  // ---------- seeded random ----------
+  function hashStr(s){
+    let h = 1779033703 ^ s.length;
+    for(let i=0;i<s.length;i++){
+      h = Math.imul(h ^ s.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    return (h ^ (h >>> 16)) >>> 0;
+  }
+  function mulberry32(a){
+    return function(){
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  let extraShuffle = 0;
+
+  // ---------- shared drawing helpers ----------
+  function glow(c,x,y,r,color){
+    const g = c.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,color); g.addColorStop(1,'rgba(0,0,0,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill();
+  }
+  function inkBlot(c,x,y,r,color,rand){
+    c.fillStyle = color; c.beginPath();
+    const pts = 9;
+    for(let i=0;i<=pts;i++){
+      const ang = (i/pts)*Math.PI*2;
+      const rr = r*(0.65+rand()*0.6);
+      const px = x+Math.cos(ang)*rr, py = y+Math.sin(ang)*rr*0.75;
+      if(i===0) c.moveTo(px,py); else c.lineTo(px,py);
+    }
+    c.closePath(); c.fill();
+  }
+  function vignette(c,w,h,strength,color){
+    color = color || '0,0,0';
+    const g = c.createRadialGradient(w/2,h*0.46,h*0.28,w/2,h*0.46,h*0.8);
+    g.addColorStop(0,`rgba(${color},0)`); g.addColorStop(1,`rgba(${color},${strength})`);
+    c.fillStyle = g; c.fillRect(0,0,w,h);
+  }
+  function grainPattern(c){
+    const tile = document.createElement('canvas');
+    tile.width = 160; tile.height = 160;
+    const tctx = tile.getContext('2d');
+    const img = tctx.createImageData(160,160);
+    for(let i=0;i<img.data.length;i+=4){
+      const v = Math.random()*255;
+      img.data[i]=v; img.data[i+1]=v; img.data[i+2]=v; img.data[i+3]=255;
+    }
+    tctx.putImageData(img,0,0);
+    return c.createPattern(tile,'repeat');
+  }
+  function applyGrain(c,w,h,alpha){
+    c.save();
+    c.globalAlpha = alpha; c.globalCompositeOperation = 'overlay';
+    c.fillStyle = grainPattern(c); c.fillRect(0,0,w,h);
+    c.restore();
+  }
+  function star(c,x,y,r,color){
+    c.fillStyle = color; c.beginPath();
+    for(let i=0;i<4;i++){
+      const ang = (i/4)*Math.PI*2;
+      c.lineTo(x+Math.cos(ang)*r, y+Math.sin(ang)*r);
+      const midAng = ang + Math.PI/4;
+      c.lineTo(x+Math.cos(midAng)*r*0.25, y+Math.sin(midAng)*r*0.25);
+    }
+    c.closePath(); c.fill();
+  }
+
+  // ---------- mood scenes ----------
+  function sceneDarkAcademia(c,w,h,rand,m){
+    let g = c.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'#2c1d13'); g.addColorStop(1,'#0f0a07');
+    c.fillStyle = g; c.fillRect(0,0,w,h);
+    glow(c, w*0.5, h*0.16, w*0.62, 'rgba(201,169,79,0.22)');
+    for(let i=0;i<5;i++){
+      inkBlot(c, rand()*w, h*(0.62+rand()*0.35), 70+rand()*110, 'rgba(8,5,3,0.55)', rand);
+    }
+    for(let i=0;i<50;i++){
+      c.fillStyle = `rgba(201,169,79,${0.05+rand()*0.18})`;
+      c.beginPath(); c.arc(rand()*w, rand()*h, 1+rand()*2, 0, Math.PI*2); c.fill();
+    }
+    vignette(c,w,h,0.58,'8,5,3');
+  }
+  function sceneNoir(c,w,h,rand,m){
+    let g = c.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'#11141c'); g.addColorStop(1,'#020308');
+    c.fillStyle = g; c.fillRect(0,0,w,h);
+    glow(c, w*0.5, h*0.05, w*0.75, 'rgba(160,180,205,0.16)');
+    c.strokeStyle = 'rgba(180,195,210,0.14)';
+    c.lineWidth = 2;
+    for(let i=0;i<70;i++){
+      const x = rand()*w*1.3 - w*0.15, y = rand()*h;
+      const len = 40+rand()*90;
+      c.beginPath(); c.moveTo(x,y); c.lineTo(x-len*0.25, y+len); c.stroke();
+    }
+    vignette(c,w,h,0.72,'0,0,0');
+  }
+  function sceneCottage(c,w,h,rand,m){
+    let g = c.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'#fbf3e6'); g.addColorStop(1,'#e7ecd6');
+    c.fillStyle = g; c.fillRect(0,0,w,h);
+    glow(c, w*0.82, h*0.12, w*0.55, 'rgba(250,210,150,0.45)');
+    glow(c, w*0.15, h*0.85, w*0.5, 'rgba(200,220,180,0.4)');
+    const petalColors = ['rgba(217,142,155,0.55)','rgba(124,148,115,0.4)','rgba(240,200,120,0.45)'];
+    for(let i=0;i<26;i++){
+      c.save();
+      c.translate(rand()*w, rand()*h);
+      c.rotate(rand()*Math.PI*2);
+      c.fillStyle = petalColors[Math.floor(rand()*petalColors.length)];
+      c.beginPath();
+      c.ellipse(0,0, 14+rand()*16, 7+rand()*7, 0, 0, Math.PI*2);
+      c.fill();
+      c.restore();
+    }
+    vignette(c,w,h,0.18,'90,80,60');
+  }
+  function sceneFantasy(c,w,h,rand,m){
+    let g = c.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'#221a4a'); g.addColorStop(0.55,'#150f30'); g.addColorStop(1,'#0a0718');
+    c.fillStyle = g; c.fillRect(0,0,w,h);
+    glow(c, w*0.7, h*0.2, w*0.4, 'rgba(224,192,104,0.35)');
+    for(let i=0;i<110;i++){
+      const r = rand()*1.6+0.3;
+      c.fillStyle = `rgba(255,255,255,${0.15+rand()*0.55})`;
+      c.beginPath(); c.arc(rand()*w, rand()*h*0.7, r, 0, Math.PI*2); c.fill();
+    }
+    for(let i=0;i<14;i++){
+      star(c, rand()*w, rand()*h*0.55, 3+rand()*4, 'rgba(224,192,104,0.7)');
+    }
+    const mtnColors = ['#0d0a24','#171136','#1f1846'];
+    for(let layer=0; layer<3; layer++){
+      c.fillStyle = mtnColors[layer];
+      c.beginPath(); c.moveTo(0,h);
+      let x = 0;
+      const baseY = h*(0.78 + layer*0.06);
+      while(x < w){
+        const nx = x + 80 + rand()*140;
+        const ny = baseY - rand()*h*0.16;
+        c.lineTo(nx, ny);
+        x = nx;
+      }
+      c.lineTo(w,h); c.closePath(); c.fill();
+    }
+    vignette(c,w,h,0.4,'5,3,15');
+  }
+  function sceneCyberpunk(c,w,h,rand,m){
+    c.fillStyle = '#05050a'; c.fillRect(0,0,w,h);
+    glow(c, w*0.28, h*0.6, w*0.5, 'rgba(255,47,176,0.28)');
+    glow(c, w*0.75, h*0.32, w*0.45, 'rgba(51,255,240,0.24)');
+    const vx = w*0.5, vy = h*0.62;
+    c.strokeStyle = 'rgba(51,255,240,0.28)'; c.lineWidth = 1.5;
+    for(let i=-10;i<=10;i++){
+      c.beginPath(); c.moveTo(vx, vy); c.lineTo(vx + i*w*0.09, h); c.stroke();
+    }
+    for(let i=0;i<10;i++){
+      const t = i/10;
+      const y = vy + (h-vy)*t*t;
+      c.beginPath(); c.moveTo(0,y); c.lineTo(w,y);
+      c.strokeStyle = `rgba(51,255,240,${0.1+t*0.15})`;
+      c.stroke();
+    }
+    c.globalAlpha = 0.06; c.fillStyle = '#fff';
+    for(let y=0;y<h;y+=4){ c.fillRect(0,y,w,1); }
+    c.globalAlpha = 1;
+    vignette(c,w,h,0.55,'0,0,0');
+  }
+  function sceneGothic(c,w,h,rand,m){
+    let g = c.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'#170710'); g.addColorStop(1,'#050203');
+    c.fillStyle = g; c.fillRect(0,0,w,h);
+    glow(c, w*0.5, h*0.14, w*0.35, 'rgba(220,215,220,0.22)');
+    c.strokeStyle = 'rgba(138,16,48,0.55)'; c.lineWidth = 3;
+    function vine(startX){
+      c.beginPath();
+      let x = startX, y = h;
+      c.moveTo(x,y);
+      for(let i=0;i<9;i++){
+        const nx = x + (rand()-0.5)*90;
+        const ny = y - h*0.08 - rand()*h*0.05;
+        c.quadraticCurveTo(x + (rand()-0.5)*60, (y+ny)/2, nx, ny);
+        if(rand()>0.4){
+          c.save(); c.translate(nx,ny); c.rotate(rand()*Math.PI*2);
+          c.beginPath(); c.moveTo(0,0); c.lineTo(10+rand()*8,0); c.stroke();
+          c.restore();
+        }
+        x = nx; y = ny;
+      }
+      c.stroke();
+    }
+    vine(w*0.08); vine(w*0.92); vine(w*0.5);
+    glow(c, w*0.5, h*0.92, w*0.55, 'rgba(230,225,225,0.15)');
+    vignette(c,w,h,0.68,'2,0,3');
+  }
+
+  // ---------- mood config ----------
+  const MOODS = {
+    darkAcademia: {
+      label:'Dark Academia', accent:'#c9a94f', textColor:'#efe4c8',
+      displayFont:"'Cormorant Garamond', serif", bodyFont:"'EB Garamond', serif",
+      titleStyle:'italic', titleWeight:'600', grain:0.07,
+      keywords:['library','professor','university','secret society','ancient','tome','candlelight','scholar','academia','academic','rivalry','obsession','murder','elite','oxford','classics','manuscript','tragic','tweed','thesis','philosophy'],
+      draw: sceneDarkAcademia
+    },
+    noir: {
+      label:'Angst & Noir', accent:'#9db8cf', textColor:'#e9edf2',
+      displayFont:"'Oswald', sans-serif", bodyFont:"'Oswald', sans-serif",
+      titleStyle:'normal', titleWeight:'600', grain:0.1,
+      keywords:['betrayal','grief','war','trauma','blood','revenge','broken','pain','death','tragedy','guilt','haunted','cold','spy','crime','mafia','assassin','angst','hurt/comfort','suffering','loss'],
+      draw: sceneNoir
+    },
+    cottage: {
+      label:'Cozy & Fluff', accent:'#7c9473', textColor:'#3f3627',
+      displayFont:"'Marcellus', serif", bodyFont:"'Quicksand', sans-serif",
+      titleStyle:'normal', titleWeight:'500', grain:0.03,
+      keywords:['cozy','soft','tea','bakery','garden','cottage','small town','fluff','comfort','farmers market','sunshine','warm','found family','domestic','flowers','picnic','sweet','kittens','bookshop','sunny'],
+      draw: sceneCottage
+    },
+    fantasy: {
+      label:'Epic Fantasy', accent:'#e0c068', textColor:'#f4ecda',
+      displayFont:"'Cinzel', serif", bodyFont:"'Cormorant Garamond', serif",
+      titleStyle:'normal', titleWeight:'600', grain:0.05,
+      keywords:['dragon','kingdom','magic','sorcerer','prophecy','throne','quest','elves','court','fae','curse','spell','realm','empire','knight','princess','castle','war','mage','ancient gods'],
+      draw: sceneFantasy
+    },
+    cyberpunk: {
+      label:'Cyberpunk', accent:'#33fff0', textColor:'#f2f2ff',
+      displayFont:"'Orbitron', sans-serif", bodyFont:"'Rajdhani', sans-serif",
+      titleStyle:'normal', titleWeight:'700', grain:0.08,
+      keywords:['space','android','cyborg','hacker','neon','spaceship','colony','a.i.','robot','dystopia','corporation','futuristic','galaxy','alien','mecha','cybernetic','net-runner','implant'],
+      draw: sceneCyberpunk
+    },
+    gothic: {
+      label:'Gothic Romance', accent:'#c9525f', textColor:'#ece3e5',
+      displayFont:"'Cinzel Decorative', serif", bodyFont:"'Cormorant Garamond', serif",
+      titleStyle:'normal', titleWeight:'600', grain:0.09,
+      keywords:['vampire','immortal','manor','moon','dark romance','monster','sin','temptation','forbidden','gothic','thorns','poison','wicked','blood bond','coven','possessive','claim'],
+      draw: sceneGothic
+    }
+  };
+
+  function detectMood(text){
+    text = text.toLowerCase();
+    let best = null, bestScore = 0;
+    for(const key in MOODS){
+      let score = 0;
+      MOODS[key].keywords.forEach(k=>{ if(text.includes(k)) score += k.split(' ').length; });
+      if(score > bestScore){ bestScore = score; best = key; }
+    }
+    return best || 'fantasy';
+  }
+
+  // ---------- title / text rendering ----------
+  function wrapLines(c, text, maxWidth){
+    const words = text.split(/\s+/).filter(Boolean);
+    const lines = []; let current = '';
+    words.forEach(word=>{
+      const test = current ? current + ' ' + word : word;
+      if(c.measureText(test).width > maxWidth && current){
+        lines.push(current); current = word;
+      } else current = test;
+    });
+    if(current) lines.push(current);
+    return lines;
+  }
+  function fitTitle(c, title, maxWidth, maxLines, font, weight, style, startSize){
+    let size = startSize;
+    let lines = [];
+    while(size > 40){
+      c.font = `${style==='italic'?'italic ':''}${weight} ${size}px ${font}`;
+      lines = wrapLines(c, title, maxWidth);
+      if(lines.length <= maxLines) break;
+      size -= 4;
+    }
+    return { size, lines };
+  }
+  function letterSpaced(c, text, cx, y, spacing){
+    c.save(); c.textAlign = 'left';
+    const chars = [...text];
+    const widths = chars.map(ch=>c.measureText(ch).width);
+    const total = widths.reduce((a,b)=>a+b,0) + spacing*(chars.length-1);
+    let x = cx - total/2;
+    chars.forEach((ch,i)=>{ c.fillText(ch, x, y); x += widths[i] + spacing; });
+    c.restore();
+  }
+  function drawDivider(c, cx, y, width, color){
+    c.save();
+    c.strokeStyle = color; c.lineWidth = 1.5; c.globalAlpha = 0.75;
+    c.beginPath(); c.moveTo(cx-width/2,y); c.lineTo(cx-10,y); c.stroke();
+    c.beginPath(); c.moveTo(cx+10,y); c.lineTo(cx+width/2,y); c.stroke();
+    c.save(); c.translate(cx,y); c.rotate(Math.PI/4);
+    c.fillStyle = color; c.fillRect(-4,-4,8,8);
+    c.restore(); c.restore();
+  }
+  function drawTitleBlock(c, w, h, mood, data){
+    c.save();
+    c.textAlign = 'center';
+    c.fillStyle = mood.accent;
+    c.font = `600 ${Math.round(w*0.028)}px ${mood.bodyFont}`;
+    letterSpaced(c, mood.label.toUpperCase(), w/2, h*0.30, w*0.012);
+
+    drawDivider(c, w/2, h*0.335, w*0.22, mood.accent);
+
+    const { size, lines } = fitTitle(c, data.title.toUpperCase(), w*0.78, 4, mood.displayFont, mood.titleWeight, mood.titleStyle, Math.round(w*0.12));
+    c.fillStyle = mood.textColor;
+    c.shadowColor = 'rgba(0,0,0,0.5)'; c.shadowBlur = w*0.02;
+    const lineHeight = size*1.18;
+    const startY = h*0.46 - (lines.length-1)*lineHeight/2;
+    lines.forEach((line,i)=>{
+      c.fillText(line, w/2, startY + i*lineHeight);
+    });
+    c.shadowBlur = 0;
+
+    if(data.author){
+      c.font = `500 ${Math.round(w*0.032)}px ${mood.bodyFont}`;
+      c.fillStyle = mood.accent;
+      letterSpaced(c, 'by ' + data.author, w/2, h*0.93, w*0.006);
+    }
+    c.restore();
+  }
+
+  // ---------- main render ----------
+  function currentData(){
+    return {
+      title: titleInput.value.trim() || 'Untitled Fic',
+      author: authorInput.value.trim(),
+      summary: summaryInput.value.trim()
+    };
+  }
+  function render(){
+    const data = currentData();
+    const moodKey = moodSelect.value === 'auto' ? detectMood(data.title + ' ' + data.summary) : moodSelect.value;
+    const mood = MOODS[moodKey];
+    badge.textContent = moodSelect.value === 'auto'
+      ? '✨ Detected vibe: ' + mood.label
+      : 'Vibe: ' + mood.label;
+
+    const seed = hashStr(data.title + '|' + data.summary + '|' + moodKey + '|' + extraShuffle);
+    const rand = mulberry32(seed);
+
+    ctx.clearRect(0,0,W,H);
+    mood.draw(ctx, W, H, rand, mood);
+    applyGrain(ctx, W, H, mood.grain);
+    drawTitleBlock(ctx, W, H, mood, data);
+
+    // thin frame
+    ctx.save();
+    ctx.strokeStyle = mood.accent; ctx.globalAlpha = 0.35; ctx.lineWidth = 3;
+    ctx.strokeRect(18,18,W-36,H-36);
+    ctx.restore();
+  }
+
+  let renderScheduled = false;
+  function scheduleRender(){
+    if(renderScheduled) return;
+    renderScheduled = true;
+    requestAnimationFrame(()=>{ renderScheduled = false; render(); });
+  }
+
+  [titleInput, authorInput, summaryInput].forEach(el=>{
+    el.addEventListener('input', scheduleRender);
+  });
+  moodSelect.addEventListener('change', scheduleRender);
+  shuffleBtn.addEventListener('click', ()=>{ extraShuffle++; render(); });
+  downloadBtn.addEventListener('click', ()=>{
+    const data = currentData();
+    const slug = data.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || 'cover';
+    const link = document.createElement('a');
+    link.download = slug + '-cover.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
+
+  // ---------- import: epub ----------
+  epubInput.addEventListener('change', async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    setStatus('Reading epub…');
+    try{
+      const buf = await file.arrayBuffer();
+      const zip = await JSZip.loadAsync(buf);
+      const containerFile = zip.file('META-INF/container.xml');
+      if(!containerFile) throw new Error('no container.xml');
+      const containerXml = await containerFile.async('string');
+      const containerDoc = new DOMParser().parseFromString(containerXml, 'application/xml');
+      const rootfile = containerDoc.getElementsByTagName('rootfile')[0];
+      const opfPath = rootfile.getAttribute('full-path');
+      const opfFile = zip.file(opfPath);
+      if(!opfFile) throw new Error('no opf file');
+      const opfText = await opfFile.async('string');
+      const opfDoc = new DOMParser().parseFromString(opfText, 'application/xml');
+      const getDC = tag => Array.from(opfDoc.getElementsByTagNameNS('http://purl.org/dc/elements/1.1/', tag))
+        .map(el=>el.textContent.trim()).filter(Boolean);
+
+      const title = getDC('title')[0] || '';
+      const creator = getDC('creator')[0] || '';
+      const description = stripHtml(getDC('description')[0] || '');
+      const subjects = getDC('subject');
+
+      if(title) titleInput.value = title;
+      if(creator) authorInput.value = creator;
+      summaryInput.value = [description, subjects.length ? 'Tags: ' + subjects.join(', ') : '']
+        .filter(Boolean).join('\n\n');
+
+      setStatus('✓ Imported from ' + file.name);
+      render();
+    } catch(err){
+      setStatus("Couldn't read that file — make sure it's a valid .epub.");
+    }
+  });
+
+  // ---------- import: AO3 link ----------
+  async function fetchAO3(url){
+    setStatus('Fetching from AO3…');
+    const attempts = [
+      u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+      u => 'https://corsproxy.io/?' + encodeURIComponent(u)
+    ];
+    for(const buildProxyUrl of attempts){
+      try{
+        const res = await fetch(buildProxyUrl(url));
+        if(!res.ok) continue;
+        const html = await res.text();
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+
+        const titleEl = doc.querySelector('h2.title.heading');
+        const authorEls = doc.querySelectorAll('a[rel="author"]');
+        const summaryEl = doc.querySelector('.summary.module blockquote.userstuff')
+          || doc.querySelector('.preface .summary blockquote.userstuff');
+        const tagEls = doc.querySelectorAll('dl.tags dd a.tag');
+
+        if(!titleEl && !summaryEl && tagEls.length === 0) continue;
+
+        const title = titleEl ? titleEl.textContent.trim() : '';
+        const author = Array.from(authorEls).map(a=>a.textContent.trim()).join(', ');
+        const summary = summaryEl ? summaryEl.textContent.trim() : '';
+        const tags = Array.from(tagEls).map(a=>a.textContent.trim());
+
+        if(title) titleInput.value = title;
+        if(author) authorInput.value = author;
+        summaryInput.value = [summary, tags.length ? 'Tags: ' + tags.join(', ') : '']
+          .filter(Boolean).join('\n\n');
+
+        setStatus('✓ Imported from AO3');
+        render();
+        return;
+      } catch(err){ /* try next proxy */ }
+    }
+    setStatus("Couldn't auto-fetch that link — paste the summary in manually instead.");
+  }
+  ao3Btn.addEventListener('click', ()=>{
+    const url = ao3Input.value.trim();
+    if(!url){ setStatus('Paste an AO3 work link first.'); return; }
+    fetchAO3(url);
+  });
+  ao3Input.addEventListener('keydown', e=>{
+    if(e.key === 'Enter'){ e.preventDefault(); ao3Btn.click(); }
+  });
+
+  // seed sample content so the tool isn't blank on load
+  titleInput.value = 'the weight of what remains';
+  authorInput.value = '';
+  summaryInput.value = 'Enemies to lovers, secret royal court intrigue, ancient magic, slow burn. She was raised to kill him. He was raised to rule the kingdom she\'d sworn to burn down.';
+
+  if(document.fonts && document.fonts.ready){
+    document.fonts.ready.then(render);
+  }
+  render();
+  setTimeout(render, 350); // safety re-render once webfonts finish swapping
+})();
+</script>
+</body>
+</html>
