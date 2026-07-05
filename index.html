@@ -6,7 +6,7 @@
 <title>Frontispiece — Fic Cover Generator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,600&family=EB+Garamond:wght@400;500&family=Oswald:wght@300;400;600&family=Marcellus&family=Quicksand:wght@400;500;600&family=Cinzel:wght@400;600&family=Cinzel+Decorative:wght@700&family=Orbitron:wght@500;700&family=Rajdhani:wght@400;500;600&family=Fraunces:ital,wght@0,600;1,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,600&family=EB+Garamond:ital,wght@0,400;0,500;1,500&family=Oswald:wght@300;400;600&family=Marcellus&family=Quicksand:wght@400;500;600&family=Cinzel:wght@400;600&family=Cinzel+Decorative:wght@700&family=Orbitron:wght@500;700&family=Rajdhani:wght@400;500;600&family=Italiana&family=IM+Fell+English:ital@1&family=Special+Elite&family=Bebas+Neue&family=Caveat:wght@500;600&family=Fraunces:ital,wght@0,600;1,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --panel:#eee8de; --panel-border:#d9d1bf; --accent:#3f7a72; --accent-dark:#2c584f;
@@ -48,6 +48,9 @@
   #shuffleBtn:hover{background:#d6cdb4;}
   .primary{background:var(--accent); color:#fff;}
   .primary:hover{background:var(--accent-dark);}
+  button:disabled{opacity:.45; cursor:not-allowed; background:#c9c2ae; color:#7a7360;}
+  .row-2{display:flex; gap:.7rem;}
+  .row-2 > label{flex:1;}
   .hint{font-size:.78rem; color:var(--muted); line-height:1.4; margin-top:-.4rem;}
   .divider{border:none; border-top:1px solid var(--panel-border); margin:.3rem 0;}
   .import-row{display:flex; gap:.5rem; align-items:stretch;}
@@ -108,15 +111,43 @@
         <option value="fantasy">Epic Fantasy</option>
         <option value="cyberpunk">Cyberpunk</option>
         <option value="gothic">Gothic Romance</option>
+        <option value="romance">Romance / Contemporary</option>
+        <option value="horror">Horror / Thriller</option>
+        <option value="highSeas">High Seas / Pirate</option>
+        <option value="mystery">Mystery / Detective</option>
+        <option value="fairytale">Whimsical Fairytale</option>
+        <option value="apocalypse">Post-Apocalyptic</option>
       </select>
     </label>
     <div id="badge" class="badge"></div>
 
+    <div class="row-2">
+      <label>Rating
+        <select id="ratingSelect">
+          <option value="Not Rated">Not Rated</option>
+          <option value="General Audiences">General Audiences</option>
+          <option value="Teen And Up Audiences">Teen And Up Audiences</option>
+          <option value="Mature">Mature</option>
+          <option value="Explicit">Explicit</option>
+        </select>
+      </label>
+      <label>Color variant
+        <select id="variantSelect">
+          <option value="normal">Original</option>
+          <option value="vivid">Vivid</option>
+          <option value="muted">Muted</option>
+          <option value="warm">Warm cast</option>
+          <option value="cool">Cool cast</option>
+        </select>
+      </label>
+    </div>
+
     <div class="buttons">
       <button id="shuffleBtn" type="button">🎲 Shuffle variation</button>
       <button id="downloadBtn" type="button" class="primary">⤓ Download cover</button>
+      <button id="downloadEpubBtn" type="button" class="primary" disabled title="Upload an .epub above to enable this">⤓ Download epub w/ cover</button>
     </div>
-    <p class="hint">Covers render at 1200×1800px — ready to drop straight into your epub metadata.</p>
+    <p class="hint">Covers render at 1200×1800px. The rating badge above the title is pulled from AO3/epub metadata when you import — or set it manually.</p>
   </aside>
 
   <main class="stage">
@@ -144,6 +175,11 @@
   const ao3Input = document.getElementById('ao3Input');
   const ao3Btn = document.getElementById('ao3Btn');
   const importStatus = document.getElementById('importStatus');
+  const ratingSelect = document.getElementById('ratingSelect');
+  const variantSelect = document.getElementById('variantSelect');
+  const downloadEpubBtn = document.getElementById('downloadEpubBtn');
+
+  let importedEpub = null; // { zip, opfPath, opfDoc }
 
   function setStatus(msg){ importStatus.textContent = msg; }
   function stripHtml(html){
@@ -210,6 +246,33 @@
     c.globalAlpha = alpha; c.globalCompositeOperation = 'overlay';
     c.fillStyle = grainPattern(c); c.fillRect(0,0,w,h);
     c.restore();
+  }
+  function ridge(c,w,h,baseYFrac,heightFrac,color,rand,smooth){
+    c.fillStyle = color;
+    c.beginPath(); c.moveTo(0,h);
+    let x = 0, prevX = 0, prevY = h*baseYFrac;
+    c.lineTo(0, prevY);
+    while(x < w){
+      const nx = x + 60 + rand()*100;
+      const ny = h*baseYFrac - rand()*h*heightFrac;
+      if(smooth) c.quadraticCurveTo((prevX+nx)/2, (prevY+ny)/2, nx, ny);
+      else c.lineTo(nx, ny);
+      prevX = nx; prevY = ny; x = nx;
+    }
+    c.lineTo(w,h); c.closePath(); c.fill();
+  }
+  function cracks(c,cx,cy,count,length,color,rand){
+    for(let i=0;i<count;i++){
+      let ang = rand()*Math.PI*2, x = cx, y = cy, len = 0;
+      c.beginPath(); c.moveTo(x,y);
+      while(len < length){
+        const seg = 10+rand()*20;
+        ang += (rand()-0.5)*0.6;
+        x += Math.cos(ang)*seg; y += Math.sin(ang)*seg;
+        c.lineTo(x,y); len += seg;
+      }
+      c.strokeStyle = color; c.lineWidth = 1+rand()*1.5; c.stroke();
+    }
   }
   function star(c,x,y,r,color){
     c.fillStyle = color; c.beginPath();
@@ -284,20 +347,91 @@
       star(c, rand()*w, rand()*h*0.55, 3+rand()*4, 'rgba(224,192,104,0.7)');
     }
     const mtnColors = ['#0d0a24','#171136','#1f1846'];
-    for(let layer=0; layer<3; layer++){
-      c.fillStyle = mtnColors[layer];
-      c.beginPath(); c.moveTo(0,h);
-      let x = 0;
-      const baseY = h*(0.78 + layer*0.06);
-      while(x < w){
-        const nx = x + 80 + rand()*140;
-        const ny = baseY - rand()*h*0.16;
-        c.lineTo(nx, ny);
-        x = nx;
-      }
-      c.lineTo(w,h); c.closePath(); c.fill();
-    }
+    mtnColors.forEach((col,layer)=> ridge(c,w,h, 0.78+layer*0.06, 0.16, col, rand, false));
     vignette(c,w,h,0.4,'5,3,15');
+  }
+  function sceneRomance(c,w,h,rand,m){
+    let g = c.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'#5a2c38'); g.addColorStop(1,'#221016');
+    c.fillStyle = g; c.fillRect(0,0,w,h);
+    glow(c, w*0.5, h*0.4, w*0.55, 'rgba(227,169,176,0.28)');
+    for(let i=0;i<16;i++){
+      glow(c, rand()*w, rand()*h, 30+rand()*70, `rgba(240,210,200,${0.06+rand()*0.12})`);
+    }
+    c.strokeStyle = 'rgba(255,235,225,0.08)'; c.lineWidth = 2;
+    for(let i=0;i<8;i++){
+      c.beginPath(); c.moveTo(w*0.85, -20); c.lineTo(w*0.85 - i*70, h*1.1); c.stroke();
+    }
+    vignette(c,w,h,0.5,'20,8,12');
+  }
+  function sceneHorror(c,w,h,rand,m){
+    let g = c.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'#0d0f0d'); g.addColorStop(1,'#000000');
+    c.fillStyle = g; c.fillRect(0,0,w,h);
+    glow(c, w*(0.3+rand()*0.4), h*(0.3+rand()*0.3), w*0.3, 'rgba(143,29,29,0.22)');
+    cracks(c, w*0.5, h*0.35, 5, 260, 'rgba(200,195,190,0.16)', rand);
+    cracks(c, w*(rand()*0.6+0.2), h*(rand()*0.5+0.4), 3, 160, 'rgba(143,29,29,0.2)', rand);
+    for(let i=0;i<20;i++){
+      c.strokeStyle = `rgba(255,255,255,${0.02+rand()*0.04})`;
+      c.beginPath(); c.moveTo(rand()*w,0); c.lineTo(rand()*w,h); c.stroke();
+    }
+    vignette(c,w,h,0.78,'0,0,0');
+  }
+  function sceneHighSeas(c,w,h,rand,m){
+    let g = c.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'#0a2a3a'); g.addColorStop(1,'#04141c');
+    c.fillStyle = g; c.fillRect(0,0,w,h);
+    glow(c, w*0.22, h*0.18, w*0.22, 'rgba(230,220,190,0.35)');
+    for(let i=0;i<40;i++){
+      c.fillStyle = `rgba(255,255,255,${0.1+rand()*0.4})`;
+      c.beginPath(); c.arc(rand()*w, rand()*h*0.45, 0.5+rand()*1.4, 0, Math.PI*2); c.fill();
+    }
+    const waveColors = ['#082330','#0b2c3d','#0f3648'];
+    waveColors.forEach((col,layer)=> ridge(c,w,h, 0.72+layer*0.09, 0.05, col, rand, true));
+    vignette(c,w,h,0.45,'2,10,15');
+  }
+  function sceneMystery(c,w,h,rand,m){
+    let g = c.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'#241a12'); g.addColorStop(1,'#0c0805');
+    c.fillStyle = g; c.fillRect(0,0,w,h);
+    glow(c, w*0.7, h*0.12, w*0.4, 'rgba(201,138,63,0.3)');
+    c.strokeStyle = 'rgba(201,168,120,0.1)'; c.lineWidth = 2;
+    for(let i=0;i<45;i++){
+      const x = rand()*w*1.2 - w*0.1, y = rand()*h, len = 30+rand()*70;
+      c.beginPath(); c.moveTo(x,y); c.lineTo(x-len*0.2, y+len); c.stroke();
+    }
+    inkBlot(c, w*0.15, h*0.88, 90+rand()*60, 'rgba(60,35,15,0.35)', rand);
+    vignette(c,w,h,0.62,'8,5,3');
+  }
+  function sceneFairytale(c,w,h,rand,m){
+    let g = c.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'#f3e8ff'); g.addColorStop(1,'#e3f5ea');
+    c.fillStyle = g; c.fillRect(0,0,w,h);
+    glow(c, w*0.78, h*0.15, w*0.45, 'rgba(250,225,150,0.4)');
+    for(let i=0;i<10;i++){
+      c.fillStyle = `rgba(255,255,255,${0.4+rand()*0.3})`;
+      c.beginPath();
+      c.ellipse(rand()*w, h*(0.15+rand()*0.5), 40+rand()*50, 14+rand()*10, 0, 0, Math.PI*2);
+      c.fill();
+    }
+    const sparkleColors = ['rgba(180,138,209,0.8)','rgba(240,180,200,0.8)','rgba(160,210,190,0.8)'];
+    for(let i=0;i<20;i++){
+      star(c, rand()*w, rand()*h, 3+rand()*5, sparkleColors[Math.floor(rand()*sparkleColors.length)]);
+    }
+    vignette(c,w,h,0.12,'150,120,140');
+  }
+  function sceneApocalypse(c,w,h,rand,m){
+    let g = c.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'#3a332c'); g.addColorStop(1,'#141210');
+    c.fillStyle = g; c.fillRect(0,0,w,h);
+    glow(c, w*0.5, h*0.32, w*0.5, 'rgba(217,112,47,0.4)');
+    const rubbleColors = ['#100e0c','#1c1815','#282219'];
+    rubbleColors.forEach((col,layer)=> ridge(c,w,h, 0.8+layer*0.05, 0.12, col, rand, false));
+    for(let i=0;i<45;i++){
+      c.fillStyle = `rgba(200,195,185,${0.05+rand()*0.12})`;
+      c.beginPath(); c.arc(rand()*w, rand()*h, 1+rand()*2, 0, Math.PI*2); c.fill();
+    }
+    vignette(c,w,h,0.6,'5,4,3');
   }
   function sceneCyberpunk(c,w,h,rand,m){
     c.fillStyle = '#05050a'; c.fillRect(0,0,w,h);
@@ -391,9 +525,67 @@
       titleStyle:'normal', titleWeight:'600', grain:0.09,
       keywords:['vampire','immortal','manor','moon','dark romance','monster','sin','temptation','forbidden','gothic','thorns','poison','wicked','blood bond','coven','possessive','claim'],
       draw: sceneGothic
+    },
+    romance: {
+      label:'Romance', accent:'#e3a9b0', textColor:'#f7e9e6',
+      displayFont:"'Italiana', serif", bodyFont:"'EB Garamond', serif",
+      titleStyle:'normal', titleWeight:'500', grain:0.04,
+      keywords:['coffee shop','contemporary','meet cute','wedding','soulmate','valentine','proposal','date night','love confession','romantic','anniversary','honeymoon','fake dating','best friends to lovers'],
+      draw: sceneRomance
+    },
+    horror: {
+      label:'Horror / Thriller', accent:'#8f1d1d', textColor:'#e8e4dc',
+      displayFont:"'IM Fell English', serif", bodyFont:"'Oswald', sans-serif",
+      titleStyle:'italic', titleWeight:'400', grain:0.12,
+      keywords:['horror','slasher','cult','possession','demon','nightmare','stalker','serial killer','gore','psychological horror','haunting','asylum','ritual','sacrifice'],
+      draw: sceneHorror
+    },
+    highSeas: {
+      label:'High Seas', accent:'#c9a24b', textColor:'#eaf2f0',
+      displayFont:"'Cinzel', serif", bodyFont:"'Quicksand', sans-serif",
+      titleStyle:'normal', titleWeight:'600', grain:0.05,
+      keywords:['pirate','ship','sailor','ocean','sea','navy','captain','shipwreck','island','treasure','mutiny','naval','high seas','crew'],
+      draw: sceneHighSeas
+    },
+    mystery: {
+      label:'Mystery / Detective', accent:'#c98a3f', textColor:'#ece0c8',
+      displayFont:"'Special Elite', serif", bodyFont:"'Special Elite', serif",
+      titleStyle:'normal', titleWeight:'400', grain:0.11,
+      keywords:['detective','mystery','murder mystery','investigation','clue','whodunit','private eye','case file','crime scene','suspect','alibi'],
+      draw: sceneMystery
+    },
+    fairytale: {
+      label:'Whimsical Fairytale', accent:'#b48ad1', textColor:'#4a3457',
+      displayFont:"'Caveat', cursive", bodyFont:"'Quicksand', sans-serif",
+      titleStyle:'normal', titleWeight:'600', grain:0.02,
+      keywords:['fairy tale','fairytale','once upon a time','enchanted','fae folk','curse broken','magical creatures','whimsical','storybook','wonderland','godmother','spinning wheel'],
+      draw: sceneFairytale
+    },
+    apocalypse: {
+      label:'Post-Apocalyptic', accent:'#d9702f', textColor:'#e7e2da',
+      displayFont:"'Bebas Neue', sans-serif", bodyFont:"'Oswald', sans-serif",
+      titleStyle:'normal', titleWeight:'400', grain:0.13,
+      keywords:['apocalypse','post-apocalyptic','dystopia','wasteland','zombie','survivors','collapse','ruins','radiation','bunker','end of the world','outbreak'],
+      draw: sceneApocalypse
     }
   };
 
+  const RATINGS = ['Not Rated','General Audiences','Teen And Up Audiences','Mature','Explicit'];
+  function matchRating(str){
+    if(!str) return null;
+    const s = str.trim().toLowerCase();
+    return RATINGS.find(r => r.toLowerCase() === s) || null;
+  }
+  const VARIANT_FILTERS = {
+    normal:'none',
+    vivid:'saturate(1.6) contrast(1.12)',
+    muted:'saturate(0.5) brightness(0.95)',
+    warm:'sepia(0.25) saturate(1.25) hue-rotate(-8deg)',
+    cool:'hue-rotate(18deg) saturate(1.15)'
+  };
+  function safeFilename(title){
+    return (title || 'cover').replace(/_/g,'').replace(/[\/\\:*?"<>|]/g,'').trim() || 'cover';
+  }
   function detectMood(text){
     text = text.toLowerCase();
     let best = null, bestScore = 0;
@@ -452,7 +644,7 @@
     c.textAlign = 'center';
     c.fillStyle = mood.accent;
     c.font = `600 ${Math.round(w*0.028)}px ${mood.bodyFont}`;
-    letterSpaced(c, mood.label.toUpperCase(), w/2, h*0.30, w*0.012);
+    letterSpaced(c, (data.rating || 'Not Rated').toUpperCase(), w/2, h*0.30, w*0.012);
 
     drawDivider(c, w/2, h*0.335, w*0.22, mood.accent);
 
@@ -479,7 +671,8 @@
     return {
       title: titleInput.value.trim() || 'Untitled Fic',
       author: authorInput.value.trim(),
-      summary: summaryInput.value.trim()
+      summary: summaryInput.value.trim(),
+      rating: ratingSelect.value
     };
   }
   function render(){
@@ -494,7 +687,10 @@
     const rand = mulberry32(seed);
 
     ctx.clearRect(0,0,W,H);
+    ctx.save();
+    ctx.filter = VARIANT_FILTERS[variantSelect.value] || 'none';
     mood.draw(ctx, W, H, rand, mood);
+    ctx.restore();
     applyGrain(ctx, W, H, mood.grain);
     drawTitleBlock(ctx, W, H, mood, data);
 
@@ -516,21 +712,42 @@
     el.addEventListener('input', scheduleRender);
   });
   moodSelect.addEventListener('change', scheduleRender);
+  ratingSelect.addEventListener('change', scheduleRender);
+  variantSelect.addEventListener('change', scheduleRender);
   shuffleBtn.addEventListener('click', ()=>{ extraShuffle++; render(); });
   downloadBtn.addEventListener('click', ()=>{
     const data = currentData();
-    const slug = data.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || 'cover';
     const link = document.createElement('a');
-    link.download = slug + '-cover.png';
+    link.download = safeFilename(data.title) + '.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
   });
 
   // ---------- import: epub ----------
+  function findCoverInfo(opfDoc, opfPath){
+    const basePath = opfPath.includes('/') ? opfPath.slice(0, opfPath.lastIndexOf('/')+1) : '';
+    const manifestItems = Array.from(opfDoc.getElementsByTagName('item'));
+    let item = manifestItems.find(it => (it.getAttribute('properties')||'').includes('cover-image'));
+    if(!item){
+      const metas = Array.from(opfDoc.getElementsByTagName('meta'));
+      const coverMeta = metas.find(m => m.getAttribute('name') === 'cover');
+      if(coverMeta){
+        const id = coverMeta.getAttribute('content');
+        item = manifestItems.find(it => it.getAttribute('id') === id);
+      }
+    }
+    if(item){
+      return { path: basePath + item.getAttribute('href'), id: item.getAttribute('id') };
+    }
+    return null;
+  }
+
   epubInput.addEventListener('change', async (e)=>{
     const file = e.target.files[0];
     if(!file) return;
     setStatus('Reading epub…');
+    downloadEpubBtn.disabled = true;
+    importedEpub = null;
     try{
       const buf = await file.arrayBuffer();
       const zip = await JSZip.loadAsync(buf);
@@ -552,10 +769,18 @@
       const description = stripHtml(getDC('description')[0] || '');
       const subjects = getDC('subject');
 
+      const detectedRating = subjects.map(matchRating).find(Boolean);
+      const tagSubjects = subjects.filter(s => !matchRating(s));
+
       if(title) titleInput.value = title;
       if(creator) authorInput.value = creator;
-      summaryInput.value = [description, subjects.length ? 'Tags: ' + subjects.join(', ') : '']
+      if(detectedRating) ratingSelect.value = detectedRating;
+      summaryInput.value = [description, tagSubjects.length ? 'Tags: ' + tagSubjects.join(', ') : '']
         .filter(Boolean).join('\n\n');
+
+      importedEpub = { zip, opfPath, opfDoc };
+      downloadEpubBtn.disabled = false;
+      downloadEpubBtn.title = 'Rebuilds this epub with your new cover';
 
       setStatus('✓ Imported from ' + file.name);
       render();
@@ -583,6 +808,7 @@
         const summaryEl = doc.querySelector('.summary.module blockquote.userstuff')
           || doc.querySelector('.preface .summary blockquote.userstuff');
         const tagEls = doc.querySelectorAll('dl.tags dd a.tag');
+        const ratingEl = doc.querySelector('dl.tags dd.rating.tags a.tag');
 
         if(!titleEl && !summaryEl && tagEls.length === 0) continue;
 
@@ -590,9 +816,11 @@
         const author = Array.from(authorEls).map(a=>a.textContent.trim()).join(', ');
         const summary = summaryEl ? summaryEl.textContent.trim() : '';
         const tags = Array.from(tagEls).map(a=>a.textContent.trim());
+        const detectedRating = matchRating(ratingEl ? ratingEl.textContent : '');
 
         if(title) titleInput.value = title;
         if(author) authorInput.value = author;
+        if(detectedRating) ratingSelect.value = detectedRating;
         summaryInput.value = [summary, tags.length ? 'Tags: ' + tags.join(', ') : '']
           .filter(Boolean).join('\n\n');
 
@@ -610,6 +838,52 @@
   });
   ao3Input.addEventListener('keydown', e=>{
     if(e.key === 'Enter'){ e.preventDefault(); ao3Btn.click(); }
+  });
+
+  // ---------- download: epub with new cover embedded ----------
+  downloadEpubBtn.addEventListener('click', async ()=>{
+    if(!importedEpub){
+      setStatus('Upload an .epub above first, then this will embed the new cover into it.');
+      return;
+    }
+    setStatus('Building epub…');
+    try{
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+      const { zip, opfPath, opfDoc } = importedEpub;
+      const basePath = opfPath.includes('/') ? opfPath.slice(0, opfPath.lastIndexOf('/')+1) : '';
+      const coverInfo = findCoverInfo(opfDoc, opfPath);
+
+      if(coverInfo){
+        zip.file(coverInfo.path, blob);
+      } else {
+        const newHref = 'frontispiece-cover.jpg';
+        zip.file(basePath + newHref, blob);
+        const manifest = opfDoc.getElementsByTagName('manifest')[0];
+        const newItem = opfDoc.createElement('item');
+        newItem.setAttribute('id','frontispiece-cover-img');
+        newItem.setAttribute('href', newHref);
+        newItem.setAttribute('media-type','image/jpeg');
+        newItem.setAttribute('properties','cover-image');
+        manifest.appendChild(newItem);
+        const metadata = opfDoc.getElementsByTagName('metadata')[0];
+        const metaCover = opfDoc.createElement('meta');
+        metaCover.setAttribute('name','cover');
+        metaCover.setAttribute('content','frontispiece-cover-img');
+        metadata.appendChild(metaCover);
+        const newOpfText = new XMLSerializer().serializeToString(opfDoc);
+        zip.file(opfPath, newOpfText);
+      }
+
+      const epubBlob = await zip.generateAsync({ type:'blob', mimeType:'application/epub+zip' });
+      const data = currentData();
+      const link = document.createElement('a');
+      link.download = safeFilename(data.title) + '.epub';
+      link.href = URL.createObjectURL(epubBlob);
+      link.click();
+      setStatus('✓ Epub with new cover downloaded');
+    } catch(err){
+      setStatus("Couldn't rebuild the epub — try re-uploading it.");
+    }
   });
 
   // seed sample content so the tool isn't blank on load
