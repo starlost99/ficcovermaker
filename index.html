@@ -90,6 +90,16 @@
     <div id="importStatus"></div>
     <hr class="divider">
 
+    <label>Your photos (optional)
+      <input type="file" id="photosInput" accept="image/*" multiple>
+    </label>
+    <div id="photosStatus" class="hint"></div>
+    <div class="buttons" id="photosButtons" style="display:none;">
+      <button id="clearPhotosBtn" type="button">✕ Clear photos, use illustration</button>
+    </div>
+    <p class="hint">Upload up to 9 photos and they'll be arranged into a collage, color-treated to match the mood you pick below.</p>
+    <hr class="divider">
+
     <label>Title
       <input id="titleInput" type="text" placeholder="the weight of what remains" maxlength="120">
     </label>
@@ -178,8 +188,13 @@
   const ratingSelect = document.getElementById('ratingSelect');
   const variantSelect = document.getElementById('variantSelect');
   const downloadEpubBtn = document.getElementById('downloadEpubBtn');
+  const photosInput = document.getElementById('photosInput');
+  const photosStatus = document.getElementById('photosStatus');
+  const photosButtons = document.getElementById('photosButtons');
+  const clearPhotosBtn = document.getElementById('clearPhotosBtn');
 
   let importedEpub = null; // { zip, opfPath, opfDoc }
+  let uploadedImages = []; // HTMLImageElement[]
 
   function setStatus(msg){ importStatus.textContent = msg; }
   function stripHtml(html){
@@ -283,6 +298,62 @@
       c.lineTo(x+Math.cos(midAng)*r*0.25, y+Math.sin(midAng)*r*0.25);
     }
     c.closePath(); c.fill();
+  }
+
+  // ---------- photo collage ----------
+  function drawImageCover(c, img, x, y, w, h){
+    const scale = Math.max(w / img.width, h / img.height);
+    const sw = w / scale, sh = h / scale;
+    const sx = (img.width - sw) / 2, sy = (img.height - sh) / 2;
+    c.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  }
+  function collageLayout(n, x, y, w, h, rand){
+    if(n <= 1) return [{x,y,w,h}];
+    const vertical = w >= h;
+    const firstCount = Math.ceil(n / 2);
+    const ratio = 0.38 + rand() * 0.24;
+    if(vertical){
+      const w1 = w * ratio;
+      return [
+        ...collageLayout(firstCount, x, y, w1, h, rand),
+        ...collageLayout(n - firstCount, x + w1, y, w - w1, h, rand)
+      ];
+    } else {
+      const h1 = h * ratio;
+      return [
+        ...collageLayout(firstCount, x, y, w, h1, rand),
+        ...collageLayout(n - firstCount, x, y + h1, w, h - h1, rand)
+      ];
+    }
+  }
+  function drawPhotoCollage(c, w, h, images, rand, mood){
+    c.fillStyle = '#0a0a0a';
+    c.fillRect(0, 0, w, h);
+    const gap = 12;
+    const rects = collageLayout(images.length, 0, 0, w, h, rand);
+    rects.forEach((r, i) => {
+      const img = images[i % images.length];
+      c.save();
+      c.beginPath();
+      c.rect(r.x + gap/2, r.y + gap/2, r.w - gap, r.h - gap);
+      c.clip();
+      drawImageCover(c, img, r.x + gap/2, r.y + gap/2, r.w - gap, r.h - gap);
+      c.restore();
+    });
+    // tie the photos to the chosen mood with a color wash
+    c.save();
+    c.globalCompositeOperation = 'color';
+    c.fillStyle = mood.accent;
+    c.globalAlpha = 0.22;
+    c.fillRect(0, 0, w, h);
+    c.restore();
+    // darken top and bottom so the title/rating stay legible
+    let g = c.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, 'rgba(0,0,0,0.42)');
+    g.addColorStop(0.26, 'rgba(0,0,0,0)');
+    g.addColorStop(0.66, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.6)');
+    c.fillStyle = g; c.fillRect(0, 0, w, h);
   }
 
   // ---------- mood scenes ----------
@@ -689,7 +760,11 @@
     ctx.clearRect(0,0,W,H);
     ctx.save();
     ctx.filter = VARIANT_FILTERS[variantSelect.value] || 'none';
-    mood.draw(ctx, W, H, rand, mood);
+    if(uploadedImages.length){
+      drawPhotoCollage(ctx, W, H, uploadedImages, rand, mood);
+    } else {
+      mood.draw(ctx, W, H, rand, mood);
+    }
     ctx.restore();
     applyGrain(ctx, W, H, mood.grain);
     drawTitleBlock(ctx, W, H, mood, data);
@@ -721,6 +796,36 @@
     link.download = safeFilename(data.title) + '.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
+  });
+
+  // ---------- photo upload ----------
+  function loadImageFile(file){
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('image load failed'));
+      img.src = URL.createObjectURL(file);
+    });
+  }
+  photosInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []).slice(0, 9);
+    if(!files.length) return;
+    photosStatus.textContent = 'Loading photos…';
+    try{
+      uploadedImages = await Promise.all(files.map(loadImageFile));
+      photosStatus.textContent = `✓ ${uploadedImages.length} photo${uploadedImages.length > 1 ? 's' : ''} arranged into collage`;
+      photosButtons.style.display = 'flex';
+      render();
+    } catch(err){
+      photosStatus.textContent = "Couldn't load one or more of those photos — try different files.";
+    }
+  });
+  clearPhotosBtn.addEventListener('click', () => {
+    uploadedImages = [];
+    photosInput.value = '';
+    photosStatus.textContent = '';
+    photosButtons.style.display = 'none';
+    render();
   });
 
   // ---------- import: epub ----------
